@@ -9,7 +9,7 @@ from shapely.geometry.linestring import LineString
 # The assignment graph
 ################################
 
-assignmentGraph = nx.read_gml('networkAssignment.gml')
+assignmentGraph = nx.read_gml('./data/networkAssignment.gml')
 
 
 # Show the node data
