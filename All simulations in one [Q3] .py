@@ -1459,6 +1459,7 @@ class Simulation:
         self.pmeasures3 = [[pm1_travel_time_delay, pm1_travel_time_nodelay ,pm1_incidents], pm2_cars_stuck, pm3_incidents, pm4_delayed_cars] 
 #%%
 import time
+np.set_printoptions(threshold=np.inf)
 start_time = time.time()
 runs = 100
 sim_try = Simulation(runs)
