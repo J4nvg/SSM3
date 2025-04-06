@@ -1,0 +1,17 @@
+pm1_travel_time_delay
+---
+[np.float64(45.6390192060833), np.float64(4.63426015844807)]
+---
+
+pm1_travel_time_nodelay
+---
+[np.float64(33.0290646888146), np.float64(0.142698794226762)]
+---
+
+pm1_incidents
+---
+[np.float64(0.7510898178817322), np.float64(0.03401350546977377)]
+---
+
+pm2_cars_stuck
+---

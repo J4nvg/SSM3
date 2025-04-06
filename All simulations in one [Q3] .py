@@ -49,6 +49,54 @@ def confidence_interval(mean, var, Nruns):
 
 def mean_var(array):
     return np.mean(array), np.var(array)
+
+#More data analysis
+def compute_fraction_state(data, switch):
+    #switch: 0 for cars stuck in traffic
+    #        1 for number of accidents in network
+    nruns = len(data)
+    list_dics = []
+    for n in range(nruns):
+        total_time = 0.0
+        time_in_state = {}
+        if switch == 0:
+            counts = np.cumsum(data[n].LIST_AMOUNT_CARS_TRAFFIC_CHANGE)    
+        elif switch == 1:
+            counts = np.cumsum(data[n].LIST_AMOUNT_INCIDENTS_CHANGE)
+        times = data[n].TIME_ARRAY
+        for i in range(len(times) - 1):
+            k = counts[i]
+            dt = times[i + 1] - times[i]
+            time_in_state[k] = time_in_state.get(k, 0.0) + dt
+            total_time += dt
+
+        # Convert to fraction
+        fraction_in_state = {k: time / total_time for k, time in time_in_state.items()}
+        list_dics.append(fraction_in_state)
+    return list_dics
+
+def dicts_to_array(dict_list):
+    # Find all keys that appear in any dictionary
+    all_keys = sorted(set().union(*dict_list))
+    
+    # Create an array with shape (n_samples, n_keys)
+    data = np.array([[d.get(k, 0.0) for k in all_keys] for d in dict_list])
+    return np.array(all_keys), data
+
+def mean_delayed_per_hour(data):
+    list_dics = []
+    for n in range(len(data)):
+        times = data[n].TIME_ARRAY
+        delayed = np.cumsum(data[n].LIST_AMOUNT_CARS_TRAFFIC_CHANGE)
+        hour_buckets = {n:[] for n in range(0,24)}
+
+        for t, d in zip(times, delayed):
+            hour = np.floor(t)%24
+            hour_buckets[hour].append(d)
+
+        mean_per_hour = {hour: np.mean(values) for hour, values in hour_buckets.items()}
+        list_dics.append(mean_per_hour)
+    return list_dics
 #%%
 class FES:
     def __init__(self):
@@ -169,8 +217,11 @@ class Car:
         self.time = time_entrance
         self.time_entrance = time_entrance
 
+        self.time_enter_q = 0
+
         #keeping track of amount of accidents encountered
         self.accidents = 0
+        self.time_delayed = 0
         self.next_event = None
 
 
@@ -287,7 +338,9 @@ class Car:
 
     def exit_queue(self, time_exit):
         #Update time of car when it left the queue
-        self.time += time_exit - self.time_enter_q
+        time_queue = time_exit - self.time_enter_q
+        self.time_delayed += time_queue
+        self.time += time_queue
         # print(self.progress)
         new_event_exit = copy(self.next_event)
         # print(self.progress)
@@ -678,6 +731,8 @@ class Simulation:
                             data_storage.LIST_AMOUNT_CARS_TRAFFIC_CHANGE.append(1)
                         else:
                             data_storage.LIST_AMOUNT_CARS_TRAFFIC_CHANGE.append(0)
+                    else:
+                        data_storage.LIST_AMOUNT_CARS_TRAFFIC_CHANGE.append(0)
                     data_storage.LIST_AMOUNT_INCIDENTS_CHANGE.append(0)
                             
                         
@@ -947,6 +1002,7 @@ class Simulation:
                     print('OH OH OH OH')
                     print(event)
                 t = event.time
+                data_storage.TIME_ARRAY.append(t)
                 # print(t)
                 #Car joins network
                 if event.type == 0:
@@ -1268,33 +1324,150 @@ class Simulation:
 
     def plot_hist2(self):
         plt.figure()
-        plt.title('Histogram of Travel time')
+        # plt.title('Histogram of Travel time be')
         plt.xlabel('Average travel time, between Utrecht and Tilburg')
         plt.ylabel('Frequency')
         data = self.data2
         travel_time_cars_ab = np.array([np.mean([data[n].LIST_CARS_AB[m].time - data[n].LIST_CARS_AB[m].time_entrance for m in range(len(data[n].LIST_CARS_AB)) if data[n].LIST_CARS_AB[m].progress == len(data[n].LIST_CARS_AB[m].path)-1 ]) for n in range(self.nruns)]) * 60
         plt.hist(travel_time_cars_ab)
-        plt.savefig("./HistogramTravelTime.svg")
+        plt.savefig('./Hist travel time AB Q2.svg')
         plt.show()
         return travel_time_cars_ab
+    
+    def performance_measures3(self):
+        data = self.data3
+        #1: individual vehicles
+        travel_time_any_delay = np.array([np.mean([data[n].LIST_VEHICLES[m].time - data[n].LIST_VEHICLES[m].time_entrance for m in range(len(data[n].LIST_VEHICLES)) if data[n].LIST_VEHICLES[m].progress == len(data[n].LIST_VEHICLES[m].path)-1 ]) for n in range(self.nruns)]) * 60
+        mean, var = mean_var(travel_time_any_delay)
+        pm1_travel_time_delay = [mean, np.sqrt(var)]
+
+        plt.figure()
+        # plt.title('Histogram of Travel time')
+        plt.xlabel('Average travel time with delay')
+        plt.ylabel('Frequency')
+        plt.hist(travel_time_any_delay)
+        plt.savefig('./Hist pm1 3 travel time any with delay Q3.svg')
+        plt.show()
+
+        travel_time_any_nodelay = np.array([np.mean([data[n].LIST_VEHICLES[m].time - data[n].LIST_VEHICLES[m].time_entrance -data[n].LIST_VEHICLES[m].time_delayed for m in range(len(data[n].LIST_VEHICLES)) if data[n].LIST_VEHICLES[m].progress == len(data[n].LIST_VEHICLES[m].path)-1 ]) for n in range(self.nruns)]) * 60
+        mean, var = mean_var(travel_time_any_nodelay)
+        pm1_travel_time_nodelay = [mean, np.sqrt(var)]
+
+        plt.figure()
+        # plt.title('Histogram of Travel time')
+        plt.xlabel('Average travel time without delay')
+        plt.ylabel('Frequency')
+        plt.hist(travel_time_any_nodelay)
+        plt.savefig('./Hist pm1 3 travel time any no delay Q3.svg')
+        plt.show()
+
+
+        # delay = np.array([np.mean([data[n].LIST_VEHICLES[m].time_delayed for m in range(len(data[n].LIST_VEHICLES)) if data[n].LIST_VEHICLES[m].progress == len(data[n].LIST_VEHICLES[m].path)-1 ]) for n in range(self.nruns)]) * 60
+        # mean, var = mean_var(delay)
+        # pm1_delay = [mean, np.sqrt(var)]
+
+
+        incident_number = np.array([np.mean([data[n].LIST_VEHICLES[m].accidents for m in range(len(data[n].LIST_VEHICLES)) if data[n].LIST_VEHICLES[m].progress == len(data[n].LIST_VEHICLES[m].path)-1 ]) for n in range(self.nruns)])
+        mean, var = mean_var(incident_number)
+        pm1_incidents = [mean, np.sqrt(var)]
+
+        hist_accidents = np.array([data[n].LIST_VEHICLES[m].accidents for n in range(self.nruns) for m in range(len(data[n].LIST_VEHICLES)) if data[n].LIST_VEHICLES[m].progress == len(data[n].LIST_VEHICLES[m].path)-1 ])
+        print(hist_accidents)
+        plt.figure()
+        # plt.title('Histogram of Travel time')
+        plt.xlabel('Average number of incidents encountered')
+        plt.ylabel('Frequency')
+        plt.hist(hist_accidents, bins=np.max(hist_accidents)+1)
+        plt.savefig('./Hist pm1 3 incident number Q3.svg')
+        plt.show()
+
+
+        #2: network
+        list_dics = compute_fraction_state(data, switch=0)
+        keys, array_fraction = dicts_to_array(list_dics)
+        mean = np.mean(array_fraction, axis=0)
+        var = np.var(array_fraction, axis=0)
+        pm2_cars_stuck = mean
+
+        #3: incidents
+        list_dics = compute_fraction_state(data, switch=1)
+        keys, array_fraction = dicts_to_array(list_dics)
+        mean = np.mean(array_fraction, axis=0)
+        var = np.var(array_fraction, axis=0)
+        pm3_incidents = mean
+
+        #4: delayed cars
+        list_dics = mean_delayed_per_hour(data)
+        keys, array = dicts_to_array(list_dics)
+        mean = np.mean(array, axis=0)
+        var = np.var(array, axis=0)
+        pm4_delayed_cars = mean #mean delayed cars per hour
+
+        plt.figure()
+        plt.title('Mean delayed cars per hour')
+        plt.xlabel('Hour of the day')
+        plt.ylabel('Delayed cars')
+        plt.plot(keys, mean)
+        plt.savefig('./mean delayed cars per hour Q3.svg')
+        plt.show()
+
+        #5: AB
+        plt.figure()
+        # plt.title('Histogram of Travel time')
+        plt.xlabel('Average travel time, between Utrecht and Tilburg')
+        plt.ylabel('Frequency')
+        travel_time_cars_ab = np.array([np.mean([data[n].LIST_CARS_AB[m].time - data[n].LIST_CARS_AB[m].time_entrance for m in range(len(data[n].LIST_CARS_AB)) if data[n].LIST_CARS_AB[m].progress == len(data[n].LIST_CARS_AB[m].path)-1 ]) for n in range(self.nruns)]) * 60
+        plt.hist(travel_time_cars_ab)
+        plt.savefig('./Hist travel time AB Q3.svg')
+        plt.show()
+
+        with open('pmeasures_output.txt', 'w') as file:
+            # Write pm1 measures
+            file.write("pm1_travel_time_delay\n")
+            file.write("---\n")
+            file.write(str(pm1_travel_time_delay) + "\n")
+            file.write("---\n\n")
+
+            file.write("pm1_travel_time_nodelay\n")
+            file.write("---\n")
+            file.write(str(pm1_travel_time_nodelay) + "\n")
+            file.write("---\n\n")
+
+            file.write("pm1_incidents\n")
+            file.write("---\n")
+            file.write(str(pm1_incidents) + "\n")
+            file.write("---\n\n")
+
+            # Write pm2 measure
+            file.write("pm2_cars_stuck\n")
+            file.write("---\n")
+            file.write(str(pm2_cars_stuck) + "\n")
+            file.write("---\n\n")
+
+            # Write pm3 measure
+            file.write("pm3_incidents\n")
+            file.write("---\n")
+            file.write(str(pm3_incidents) + "\n")
+            file.write("---\n\n")
+
+            # Write pm4 measure
+            file.write("pm4_delayed_cars\n")
+            file.write("---\n")
+            file.write(str(pm4_delayed_cars) + "\n")
+            file.write("---\n")
+
+        self.pmeasures3 = [[pm1_travel_time_delay, pm1_travel_time_nodelay ,pm1_incidents], pm2_cars_stuck, pm3_incidents, pm4_delayed_cars] 
 #%%
 import time
+np.set_printoptions(threshold=np.inf)
 start_time = time.time()
 runs = 100
-
 sim_try = Simulation(runs)
-sim_try.compute_all_data2()
-sim_try.compute_table2()
-hist = sim_try.plot_hist2()
-print("Histogram:",hist)
-
+sim_try.compute_all_data3()
+sim_try.compute_table3()
+sim_try.performance_measures3()
+print(sim_try.pmeasures3)
 print("--- %s seconds ---" % (time.time() - start_time))
-# sim_try.plot_hist2()
 #%%
-
-#%%
-
-#%%
-#%%
-
+# np.flatten([[1,2]])
 #%%
