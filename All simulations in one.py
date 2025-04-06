@@ -1274,22 +1274,24 @@ class Simulation:
         data = self.data2
         travel_time_cars_ab = np.array([np.mean([data[n].LIST_CARS_AB[m].time - data[n].LIST_CARS_AB[m].time_entrance for m in range(len(data[n].LIST_CARS_AB)) if data[n].LIST_CARS_AB[m].progress == len(data[n].LIST_CARS_AB[m].path)-1 ]) for n in range(self.nruns)]) * 60
         plt.hist(travel_time_cars_ab)
+        plt.savefig("./HistogramTravelTime.svg")
         plt.show()
         return travel_time_cars_ab
 #%%
 import time
 start_time = time.time()
-runs = 2
+runs = 100
 
 sim_try = Simulation(runs)
 sim_try.compute_all_data2()
 sim_try.compute_table2()
 hist = sim_try.plot_hist2()
+print("Histogram:",hist)
 
 print("--- %s seconds ---" % (time.time() - start_time))
 # sim_try.plot_hist2()
 #%%
-print(hist)
+
 #%%
 
 #%%
